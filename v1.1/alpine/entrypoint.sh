@@ -1,19 +1,25 @@
 #!/usr/bin/dumb-init /bin/sh
 
-# If the user has supplied only arguments append them to `fluentd` command
-if [ "${1#-}" != "$1" ]; then
-    set -- fluentd "$@"
+uid=${FLUENT_UID:-1000}
+
+# check if a old fluent user exists and delete it
+cat /etc/passwd | grep fluent
+if [ $? -eq 0 ]; then
+    deluser fluent
 fi
 
-# If user does not supply config file or plugins, use the default
-if [ "$1" = "fluentd" ]; then
-    if ! echo $@ | grep ' \-c' ; then
-       set -- "$@" -c /fluentd/etc/fluent.conf
-    fi
+# (re)add the fluent user with $FLUENT_UID
+adduser -D -g '' -u ${uid} -h /home/fluent fluent
 
-    if ! echo $@ | grep ' \-p' ; then
-       set -- "$@" -p /fluentd/plugins
-    fi
+# chown home and data folder
+chown -R fluent /home/fluent
+chown -R fluent /fluentd
+
+if [ ! ${OUT_MOD} ]; then
+    ln -s /fluentd/etc/out_file.conf  /fluentd/etc/out.conf
+else
+    ln -s /fluentd/etc/out_${OUT_MOD}.conf  /fluentd/etc/out.conf
 fi
 
-exec su-exec fluent "$@"
+#exec su-exec fluent "$@"
+exec su-exec root "$@"
